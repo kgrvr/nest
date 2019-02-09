@@ -1,14 +1,21 @@
 import { Optional } from '../decorators';
-import { ArgumentMetadata, BadRequestException } from '../index';
+import { Injectable } from '../decorators/core/component.decorator';
+import {
+  ArgumentMetadata,
+  BadRequestException,
+  ValidationError,
+} from '../index';
 import { ValidatorOptions } from '../interfaces/external/validator-options.interface';
+import { ClassTransformOptions } from '../interfaces/external/class-transform-options.interface';
 import { PipeTransform } from '../interfaces/features/pipe-transform.interface';
 import { loadPackage } from '../utils/load-package.util';
 import { isNil } from '../utils/shared.utils';
-import { Injectable } from '../decorators/core/component.decorator';
 
 export interface ValidationPipeOptions extends ValidatorOptions {
   transform?: boolean;
   disableErrorMessages?: boolean;
+  transformOptions?: ClassTransformOptions;
+  exceptionFactory?: (errors: ValidationError[]) => any;
 }
 
 let classValidator: any = {};
@@ -19,13 +26,27 @@ export class ValidationPipe implements PipeTransform<any> {
   protected isTransformEnabled: boolean;
   protected isDetailedOutputDisabled?: boolean;
   protected validatorOptions: ValidatorOptions;
+  protected transformOptions: ClassTransformOptions;
+  protected exceptionFactory: (errors: ValidationError[]) => any;
 
   constructor(@Optional() options?: ValidationPipeOptions) {
     options = options || {};
-    const { transform, disableErrorMessages, ...validatorOptions } = options;
+    const {
+      transform,
+      disableErrorMessages,
+      transformOptions,
+      ...validatorOptions
+    } = options;
     this.isTransformEnabled = !!transform;
     this.validatorOptions = validatorOptions;
+    this.transformOptions = transformOptions;
     this.isDetailedOutputDisabled = disableErrorMessages;
+    this.exceptionFactory =
+      options.exceptionFactory ||
+      (errors =>
+        new BadRequestException(
+          this.isDetailedOutputDisabled ? undefined : errors,
+        ));
 
     const loadPkg = pkg => loadPackage(pkg, 'ValidationPipe');
     classValidator = loadPkg('class-validator');
@@ -40,17 +61,16 @@ export class ValidationPipe implements PipeTransform<any> {
     const entity = classTransformer.plainToClass(
       metatype,
       this.toEmptyIfNil(value),
+      this.transformOptions
     );
     const errors = await classValidator.validate(entity, this.validatorOptions);
     if (errors.length > 0) {
-      throw new BadRequestException(
-        this.isDetailedOutputDisabled ? undefined : errors,
-      );
+      throw this.exceptionFactory(errors);
     }
     return this.isTransformEnabled
       ? entity
       : Object.keys(this.validatorOptions).length > 0
-        ? classTransformer.classToPlain(entity)
+        ? classTransformer.classToPlain(entity, this.transformOptions)
         : value;
   }
 

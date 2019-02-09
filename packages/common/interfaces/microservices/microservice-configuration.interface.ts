@@ -20,6 +20,8 @@ export interface GrpcOptions {
   transport?: Transport.GRPC;
   options: {
     url?: string;
+    maxSendMessageLength?: number;
+    maxReceiveMessageLength?: number;
     credentials?: any;
     protoPath: string;
     package: string;
@@ -77,6 +79,7 @@ export interface NatsOptions {
     reconnectTimeWait?: number;
     servers?: string[];
     tls?: any;
+    queue?: string;
   };
 }
 

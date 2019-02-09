@@ -24,7 +24,10 @@ export class CacheModule {
     return {
       module: CacheModule,
       imports: options.imports,
-      providers: this.createAsyncProviders(options),
+      providers: [
+        ...this.createAsyncProviders(options),
+        ...(options.extraProviders || []),
+      ],
     };
   }
 
